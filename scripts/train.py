@@ -19,7 +19,7 @@ import wandb
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--save_path", required=True)
-    parser.add_argument("--load_path", default=None)
+    parser.add_argument("--id", default=None)
 
     parser.add_argument("--n_mel_channels", type=int, default=80)
     parser.add_argument("--ngf", type=int, default=32)
@@ -51,12 +51,14 @@ def main():
         entity="demiurge",
         project="melgan",
         config=args,
+        id=args.id,
+        resume=True,
         save_code=True,
         dir=args.save_path,
     )
 
     root = Path(wandb.run.dir)
-    load_root = Path(args.load_path) if args.load_path else None
+    load_root = True if args.id is not None else False
     root.mkdir(parents=True, exist_ok=True)
 
     ####################################
@@ -83,7 +85,7 @@ def main():
     optG = torch.optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
     optD = torch.optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
 
-    if load_root and load_root.exists():
+    if load_root:
         netG_file = wandb.restore("netG.pt")
         netG.load_state_dict(torch.load(netG_file.name))
         optG_file = wandb.restore("optG.pt")
