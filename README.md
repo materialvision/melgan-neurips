@@ -31,9 +31,15 @@ Run these commands:
    ```
 
 ## Training Example
+
     wandb login
     env PYTHONPATH="$PWD:$PYTHONPATH" scripts/train.py --save_path checkpoints --data_path <root_data_folder>
 
+### Resume previous training run
+
+Pass the wandb run ID to the training script via the `--id` argument.
+
+    env PYTHONPATH="$PWD:$PYTHONPATH" scripts/train.py --save_path checkpoints --data_path <root_data_folder> --id 238ye1fk
 
 ## PyTorch Hub Example
     import torch
