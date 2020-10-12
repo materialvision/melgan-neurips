@@ -84,10 +84,14 @@ def main():
     optD = torch.optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
 
     if load_root and load_root.exists():
-        netG.load_state_dict(torch.load(load_root / "netG.pt"))
-        optG.load_state_dict(torch.load(load_root / "optG.pt"))
-        netD.load_state_dict(torch.load(load_root / "netD.pt"))
-        optD.load_state_dict(torch.load(load_root / "optD.pt"))
+        netG_file = wandb.restore("netG.pt")
+        netG.load_state_dict(torch.load(netG_file.name))
+        optG_file = wandb.restore("optG.pt")
+        optG.load_state_dict(torch.load(optG_file.name))
+        netD_file = wandb.restore("netD.pt")
+        netD.load_state_dict(torch.load(netD_file.name))
+        optD_file = wandb.restore("optD.pt")
+        optD.load_state_dict(torch.load(optD_file.name))
 
     #######################
     # Create data loaders #
@@ -128,7 +132,8 @@ def main():
             break
 
     wandb.log(
-        {"audio/original": samples}, step=0,
+        {"audio/original": samples},
+        step=0,
     )
 
     costs = []
@@ -210,23 +215,35 @@ def main():
                         save_sample(root / ("generated_%d.wav" % i), 22050, pred_audio)
                         samples.append(
                             wandb.Audio(
-                                pred_audio, caption=f"sample {i}", sample_rate=22050,
+                                pred_audio,
+                                caption=f"sample {i}",
+                                sample_rate=22050,
                             )
                         )
                     wandb.log(
-                        {"audio/generated": samples, "epoch": epoch,}, step=steps,
+                        {
+                            "audio/generated": samples,
+                            "epoch": epoch,
+                        },
+                        step=steps,
                     )
 
                 torch.save(netG.state_dict(), root / "netG.pt")
                 torch.save(optG.state_dict(), root / "optG.pt")
+                wandb.save(root / "netG.pt")
+                wandb.save(root / "optG.pt")
 
                 torch.save(netD.state_dict(), root / "netD.pt")
                 torch.save(optD.state_dict(), root / "optD.pt")
+                wandb.save(root / "netD.pt")
+                wandb.save(root / "optD.pt")
 
                 if np.asarray(costs).mean(0)[-1] < best_mel_reconst:
                     best_mel_reconst = np.asarray(costs).mean(0)[-1]
                     torch.save(netD.state_dict(), root / "best_netD.pt")
                     torch.save(netG.state_dict(), root / "best_netG.pt")
+                    wandb.save(root / "best_netD.pt")
+                    wandb.save(root / "best_netG.pt")
 
                 print("Took %5.4fs to generate samples" % (time.time() - st))
                 print("-" * 100)
