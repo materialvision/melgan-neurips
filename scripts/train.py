@@ -47,6 +47,8 @@ def parse_args():
 def main():
     args = parse_args()
 
+    Path(args.save_path).mkdir(parents=True, exist_ok=True)
+
     wandb.init(
         entity="demiurge",
         project="melgan",
@@ -58,7 +60,6 @@ def main():
     )
 
     root = Path(wandb.run.dir)
-    load_root = True if args.id is not None else False
     root.mkdir(parents=True, exist_ok=True)
 
     ####################################
@@ -85,15 +86,17 @@ def main():
     optG = torch.optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
     optD = torch.optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
 
-    if load_root:
-        netG_file = wandb.restore("netG.pt")
-        netG.load_state_dict(torch.load(netG_file.name))
-        optG_file = wandb.restore("optG.pt")
-        optG.load_state_dict(torch.load(optG_file.name))
-        netD_file = wandb.restore("netD.pt")
-        netD.load_state_dict(torch.load(netD_file.name))
-        optD_file = wandb.restore("optD.pt")
-        optD.load_state_dict(torch.load(optD_file.name))
+    if args.id:
+        print(f"Restoring from id {args.id}")
+        for obj, filename in [
+            (netG, "netG.pt"),
+            (optG, "optG.pt"),
+            (netD, "netD.pt"),
+            (optD, "optD.pt")
+        ]:
+            print(f"Restoring {filename}")
+            restored_file = wandb.restore(filename)
+            obj.load_state_dict(torch.load(restored_file.name))
 
     #######################
     # Create data loaders #
@@ -145,7 +148,8 @@ def main():
     torch.backends.cudnn.benchmark = True
 
     best_mel_reconst = 1000000
-    steps = 0
+    steps = wandb.run.step
+
     for epoch in range(1, args.epochs + 1):
         for iterno, x_t in enumerate(train_loader):
             x_t = x_t.cuda()
@@ -230,22 +234,23 @@ def main():
                         step=steps,
                     )
 
+                print("Saving models ...")
                 torch.save(netG.state_dict(), root / "netG.pt")
                 torch.save(optG.state_dict(), root / "optG.pt")
-                wandb.save(root / "netG.pt")
-                wandb.save(root / "optG.pt")
+                wandb.save(str(root / "netG.pt"))
+                wandb.save(str(root / "optG.pt"))
 
                 torch.save(netD.state_dict(), root / "netD.pt")
                 torch.save(optD.state_dict(), root / "optD.pt")
-                wandb.save(root / "netD.pt")
-                wandb.save(root / "optD.pt")
+                wandb.save(str(root / "netD.pt"))
+                wandb.save(str(root / "optD.pt"))
 
                 if np.asarray(costs).mean(0)[-1] < best_mel_reconst:
                     best_mel_reconst = np.asarray(costs).mean(0)[-1]
                     torch.save(netD.state_dict(), root / "best_netD.pt")
                     torch.save(netG.state_dict(), root / "best_netG.pt")
-                    wandb.save(root / "best_netD.pt")
-                    wandb.save(root / "best_netG.pt")
+                    wandb.save(str(root / "best_netD.pt"))
+                    wandb.save(str(root / "best_netG.pt"))
 
                 print("Took %5.4fs to generate samples" % (time.time() - st))
                 print("-" * 100)
