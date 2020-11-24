@@ -41,12 +41,7 @@ mkShell {
 
       # dev deps
       pudb  # debugger
-      black
       ipython
-      pyls-isort
-      pyls-black
-      pyls-mypy
-      python-language-server
     ]))
    ];
 

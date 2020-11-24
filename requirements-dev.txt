@@ -1,0 +1,7 @@
+black
+flake8
+pyls-black
+pyls-isort
+pyls-mypy
+python-language-server
+-r requirements.txt

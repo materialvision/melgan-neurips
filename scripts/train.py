@@ -1,25 +1,26 @@
 #!/usr/bin/env python
-from mel2wav.dataset import AudioDataset
-from mel2wav.modules import Generator, Discriminator, Audio2Mel
-from mel2wav.utils import save_sample
-
-import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-
-import yaml
-import numpy as np
-import time
 import argparse
+import time
 from pathlib import Path
 
+import numpy as np
+import torch
+import torch.nn.functional as F
 import wandb
+import yaml
+from torch.utils.data import DataLoader
+
+from mel2wav.dataset import AudioDataset
+from mel2wav.modules import Audio2Mel, Discriminator, Generator
+from mel2wav.utils import save_sample
+from util import seed_everything
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--save_path", required=True)
-    parser.add_argument("--id", default=None)
+    parser.add_argument("--load_from_run_id", default=None)
+    parser.add_argument("--resume_run_id", default=None)
 
     parser.add_argument("--n_mel_channels", type=int, default=80)
     parser.add_argument("--ngf", type=int, default=32)
@@ -31,6 +32,10 @@ def parse_args():
     parser.add_argument("--downsamp_factor", type=int, default=4)
     parser.add_argument("--lambda_feat", type=float, default=10)
     parser.add_argument("--cond_disc", action="store_true")
+    parser.add_argument("--learning_rate", type=float, default=1e-4)
+    parser.add_argument(
+        "--pad_mode", type=str, default="reflect", choices=["reflect", "replicate"]
+    )
 
     parser.add_argument("--data_path", default=None, type=Path)
     parser.add_argument("--batch_size", type=int, default=16)
@@ -46,10 +51,12 @@ def parse_args():
 
 
 def main():
+
+    seed_everything(7)
+
     args = parse_args()
 
     Path(args.save_path).mkdir(parents=True, exist_ok=True)
-
     entity = "demiurge"
     project = "melgan"
     load_from_run_id = args.load_from_run_id
@@ -68,20 +75,19 @@ def main():
     else:
         print("Starting new run from scratch.")
 
-
     wandb.init(
-        entity="demiurge",
-        project="melgan",
+        entity=entity,
+        project=project,
+        id=resume_run_id,
         config=args,
-        id=args.id,
-        resume=True,
+        resume=True if resume_run_id else False,
         save_code=True,
         dir=args.save_path,
     )
 
     print("run id: " + str(wandb.run.id))
     print("run name: " + str(wandb.run.name))
-
+    
     root = Path(wandb.run.dir)
     root.mkdir(parents=True, exist_ok=True)
 
@@ -98,7 +104,7 @@ def main():
     netD = Discriminator(
         args.num_D, args.ndf, args.n_layers_D, args.downsamp_factor
     ).cuda()
-    fft = Audio2Mel(n_mel_channels=args.n_mel_channels).cuda()
+    fft = Audio2Mel(n_mel_channels=args.n_mel_channels, pad_mode=args.pad_mode).cuda()
 
     for model in [netG, netD, fft]:
         wandb.watch(model)
@@ -106,19 +112,20 @@ def main():
     #####################
     # Create optimizers #
     #####################
-    optG = torch.optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
-    optD = torch.optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
+    optG = torch.optim.Adam(netG.parameters(), lr=args.learning_rate, betas=(0.5, 0.9))
+    optD = torch.optim.Adam(netD.parameters(), lr=args.learning_rate, betas=(0.5, 0.9))
 
-    if args.id:
-        print(f"Restoring from id {args.id}")
+    if load_initial_weights:
+
         for obj, filename in [
             (netG, "netG.pt"),
             (optG, "optG.pt"),
             (netD, "netD.pt"),
-            (optD, "optD.pt")
+            (optD, "optD.pt"),
         ]:
-            print(f"Restoring {filename}")
-            restored_file = wandb.restore(filename)
+            run_path = f"{entity}/{project}/{restore_run_id}"
+            print(f"Restoring {filename} from run path {run_path}")
+            restored_file = wandb.restore(filename, run_path=run_path)
             obj.load_state_dict(torch.load(restored_file.name))
 
     #######################
@@ -138,6 +145,24 @@ def main():
 
     train_loader = DataLoader(train_set, batch_size=args.batch_size, num_workers=4)
     test_loader = DataLoader(test_set, batch_size=1)
+
+    if len(train_loader) == 0:
+        raise RuntimeError("Train dataset is empty.")
+
+    if len(test_loader) == 0:
+        raise RuntimeError("Test dataset is empty.")
+
+    # Getting initial run steps and epoch
+
+    if load_from_run_id:
+        api = wandb.Api()
+        previous_run = api.run(f"{entity}/{project}/{restore_run_id}")
+        steps = previous_run.lastHistoryStep
+    else:
+        steps = wandb.run.step
+
+    start_epoch = steps // len(train_loader)
+    print(f"Starting with epoch {start_epoch} and step {steps}.")
 
     ##########################
     # Dumping original audio #
@@ -159,10 +184,10 @@ def main():
         if i == args.n_test_samples - 1:
             break
 
-    wandb.log(
-        {"audio/original": samples},
-        step=0,
-    )
+    if not resume_run_id:
+        wandb.log({"audio/original": samples}, step=0)
+    else:
+        print("We are resuming, skipping logging of original audio.")
 
     costs = []
     start = time.time()
@@ -171,9 +196,8 @@ def main():
     torch.backends.cudnn.benchmark = True
 
     best_mel_reconst = 1000000
-    steps = wandb.run.step
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, start_epoch + args.epochs + 1):
         for iterno, x_t in enumerate(train_loader):
             x_t = x_t.cuda()
             s_t = fft(x_t).detach()
@@ -290,7 +314,3 @@ def main():
                 )
                 costs = []
                 start = time.time()
-
-
-if __name__ == "__main__":
-    main()

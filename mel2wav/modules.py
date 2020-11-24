@@ -33,6 +33,7 @@ class Audio2Mel(nn.Module):
         n_mel_channels=80,
         mel_fmin=0.0,
         mel_fmax=None,
+        pad_mode="reflect",
     ):
         super().__init__()
         ##############################################
@@ -50,10 +51,11 @@ class Audio2Mel(nn.Module):
         self.win_length = win_length
         self.sampling_rate = sampling_rate
         self.n_mel_channels = n_mel_channels
+        self.pad_mode = pad_mode
 
     def forward(self, audio):
         p = (self.n_fft - self.hop_length) // 2
-        audio = F.pad(audio, (p, p), "reflect").squeeze(1)
+        audio = F.pad(audio, (p, p), mode=self.pad_mode).squeeze(1)
         fft = torch.stft(
             audio,
             n_fft=self.n_fft,

@@ -9,7 +9,6 @@ from librosa.util import normalize
 from pathlib import Path
 from dataclasses import dataclass
 import numpy as np
-import random
 
 
 @dataclass
@@ -49,13 +48,13 @@ class AudioDataset(torch.utils.data.Dataset):
         self.durations = np.array([a.duration for a in self.audio_files])
         self.duration = self.durations.sum()
         self.weights = self.durations / self.duration
-        random.seed(1234)
         self.augment = augment
+        self.random_state = np.random.RandomState(1234)
 
     def __getitem__(self, index):
 
-        audio_file = np.random.choice(self.audio_files, p=self.weights)
-        offset = np.random.randint(audio_file.duration)
+        audio_file = self.random_state.choice(self.audio_files, p=self.weights)
+        offset = self.random_state.randint(audio_file.duration)
         audio = self.load_wav_to_torch(audio_file.path, offset)
 
         # Take segment
@@ -81,7 +80,7 @@ class AudioDataset(torch.utils.data.Dataset):
         data = 0.95 * normalize(data)
 
         if self.augment:
-            amplitude = np.random.uniform(low=0.3, high=1.0)
+            amplitude = self.random_state.uniform(low=0.3, high=1.0)
             data = data * amplitude
 
         return torch.from_numpy(data).float()

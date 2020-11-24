@@ -1,7 +1,7 @@
-torch
+argparse
 librosa>=0.8.0
 pyyaml
 scipy
-argparse
-wandb==0.9.7
 soundfile
+torch
+wandb==0.10.8

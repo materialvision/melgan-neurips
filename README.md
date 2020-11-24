@@ -30,6 +30,15 @@ Run these commands:
    ls wavs/*.wav | head -n10 > test_files.txt
    ```
 
+## Installation
+Python dependencies can be installed with
+
+    pip install -r requirements.txt
+
+Or for development
+
+    pip install -r requirements-dev.txt
+
 ## Training Example
 
     wandb login
@@ -37,9 +46,16 @@ Run these commands:
 
 ### Resume previous training run
 
-Pass the wandb run ID to the training script via the `--id` argument.
 
-    env PYTHONPATH="$PWD:$PYTHONPATH" scripts/train.py --save_path checkpoints --data_path <root_data_folder> --id 238ye1fk
+There are two options
+
+    1. `--resume_run_id`: resume a previous run
+    2. `--load_from_run_id`: create a new run with the final weights from a prevous run
+
+The argument is followed by the wandb run ID, for examples `238ye1fk`.
+
+    env PYTHONPATH="$PWD:$PYTHONPATH" scripts/train.py --save_path checkpoints --data_path <root_data_folder> --resume_run_id 238ye1fk
+
 
 ## PyTorch Hub Example
     import torch
