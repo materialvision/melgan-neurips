@@ -35,6 +35,7 @@ def parse_args():
     parser.add_argument("--data_path", default=None, type=Path)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--seq_len", type=int, default=8192)
+    parser.add_argument("--sampling_rate", type=int, default=22050)
 
     parser.add_argument("--epochs", type=int, default=3000)
     parser.add_argument("--log_interval", type=int, default=100)
@@ -49,6 +50,25 @@ def main():
 
     Path(args.save_path).mkdir(parents=True, exist_ok=True)
 
+    entity = "demiurge"
+    project = "melgan"
+    load_from_run_id = args.load_from_run_id
+    resume_run_id = args.resume_run_id
+    restore_run_id = load_from_run_id or resume_run_id
+    load_initial_weights = bool(restore_run_id)
+    sampling_rate = args.sampling_rate
+
+    if load_from_run_id and resume_run_id:
+        raise RuntimeError("Specify either --load_from_id or --resume_run_id.")
+
+    if resume_run_id:
+        print(f"Resuming run ID {resume_run_id}.")
+    elif load_from_run_id:
+        print(f"Starting new run with initial weights from run ID {load_from_run_id}.")
+    else:
+        print("Starting new run from scratch.")
+
+
     wandb.init(
         entity="demiurge",
         project="melgan",
@@ -58,6 +78,9 @@ def main():
         save_code=True,
         dir=args.save_path,
     )
+
+    print("run id: " + str(wandb.run.id))
+    print("run name: " + str(wandb.run.name))
 
     root = Path(wandb.run.dir)
     root.mkdir(parents=True, exist_ok=True)
@@ -102,12 +125,12 @@ def main():
     # Create data loaders #
     #######################
     train_set = AudioDataset(
-        Path(args.data_path) / "train_files.txt", args.seq_len, sampling_rate=22050
+        Path(args.data_path) / "train_files.txt", args.seq_len, sampling_rate=sampling_rate
     )
     test_set = AudioDataset(
         Path(args.data_path) / "test_files.txt",
-        22050 * 4,
-        sampling_rate=22050,
+        sampling_rate * 4,
+        sampling_rate=sampling_rate,
         augment=False,
     )
     wandb.save(str(Path(args.data_path) / "train_files.txt"))
@@ -130,8 +153,8 @@ def main():
         test_audio.append(x_t)
 
         audio = x_t.squeeze().cpu()
-        save_sample(root / ("original_%d.wav" % i), 22050, audio)
-        samples.append(wandb.Audio(audio, caption=f"sample {i}", sample_rate=22050))
+        save_sample(root / ("original_%d.wav" % i), sampling_rate, audio)
+        samples.append(wandb.Audio(audio, caption=f"sample {i}", sample_rate=sampling_rate))
 
         if i == args.n_test_samples - 1:
             break
@@ -218,12 +241,12 @@ def main():
                     for i, (voc, _) in enumerate(zip(test_voc, test_audio)):
                         pred_audio = netG(voc)
                         pred_audio = pred_audio.squeeze().cpu()
-                        save_sample(root / ("generated_%d.wav" % i), 22050, pred_audio)
+                        save_sample(root / ("generated_%d.wav" % i), sampling_rate, pred_audio)
                         samples.append(
                             wandb.Audio(
                                 pred_audio,
                                 caption=f"sample {i}",
-                                sample_rate=22050,
+                                sample_rate=sampling_rate,
                             )
                         )
                     wandb.log(
