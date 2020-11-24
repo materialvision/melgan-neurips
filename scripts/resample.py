@@ -9,7 +9,10 @@ from joblib import Parallel, delayed
 def convert(input, output, samplerate):
     command = ["ffmpeg", "-i", str(input), "-y", "-ar", str(samplerate), str(output)]
     try:
-        return subprocess.check_output(command, stderr=subprocess.STDOUT,)
+        return subprocess.check_output(
+            command,
+            stderr=subprocess.STDOUT,
+        )
     except subprocess.CalledProcessError as exc:
         print(f"Return code: {exc.returncode}\n", exc.output)
         raise
