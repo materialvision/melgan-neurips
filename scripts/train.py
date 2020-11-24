@@ -314,3 +314,6 @@ def main():
                 )
                 costs = []
                 start = time.time()
+
+if __name__ == "__main__":
+    main()
