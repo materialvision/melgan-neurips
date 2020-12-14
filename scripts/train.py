@@ -61,8 +61,8 @@ def main():
     args = parse_args()
 
     Path(args.save_path).mkdir(parents=True, exist_ok=True)
-    entity = "demiurge"
-    project = "melgan"
+    entity = "demiurgemv"
+    project = "melganmv"
     load_from_run_id = args.load_from_run_id
     resume_run_id = args.resume_run_id
     restore_run_id = load_from_run_id or resume_run_id
